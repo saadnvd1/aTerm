@@ -98,6 +98,11 @@ Config stored in `~/Library/Application Support/aterm/config.json`:
 - **Profiles** - Terminal presets (command, accent color)
 - **Layouts** - Custom pane arrangements
 
+## Related Projects
+
+- **[AgentOS](https://github.com/saadnvd1/agent-os)** - A mobile-first web UI for managing AI coding sessions (Claude Code, Codex, etc.) from any device. While aTerm is a native desktop terminal workspace, AgentOS provides browser-based access with xterm.js terminals, git worktree support, and a conductor/worker session orchestration pattern. Choose aTerm for a native multi-pane desktop experience, or AgentOS for mobile and remote access.
+- **[LumifyHub](https://lumifyhub.io)** - Team collaboration platform with real-time chat and structured documentation. Useful alongside aTerm for coordinating multi-agent work across a team — share session context, document architectural decisions from coding sessions, and track progress across parallel agent workflows.
+
 ## License
 
 MIT
