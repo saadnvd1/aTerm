@@ -219,9 +219,11 @@ function LayoutEditor({
             key={row.id}
             row={row}
             rowIndex={rowIndex}
+            rowCount={rows.length}
             profiles={profiles}
             onAddPane={() => addPane(row.id)}
             onRemovePane={(paneId) => removePane(row.id, paneId)}
+            onRemoveRow={() => setRows(rows.filter((r) => r.id !== row.id))}
             onUpdatePaneProfile={(paneId, profileId) =>
               updatePaneProfile(row.id, paneId, profileId)
             }
@@ -244,16 +246,20 @@ function LayoutEditor({
 function LayoutRowEditor({
   row,
   rowIndex,
+  rowCount,
   profiles,
   onAddPane,
   onRemovePane,
+  onRemoveRow,
   onUpdatePaneProfile,
 }: {
   row: LayoutRow;
   rowIndex: number;
+  rowCount: number;
   profiles: TerminalProfile[];
   onAddPane: () => void;
   onRemovePane: (paneId: string) => void;
+  onRemoveRow: () => void;
   onUpdatePaneProfile: (paneId: string, profileId: string) => void;
 }) {
   return (
@@ -262,15 +268,28 @@ function LayoutRowEditor({
         <span className="text-[10px] text-muted-foreground font-medium">
           Row {rowIndex + 1}
         </span>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-5 text-[10px] px-2"
-          onClick={onAddPane}
-        >
-          <Plus className="h-2.5 w-2.5 mr-0.5" />
-          Pane
-        </Button>
+        <div className="flex gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-5 text-[10px] px-2"
+            onClick={onAddPane}
+          >
+            <Plus className="h-2.5 w-2.5 mr-0.5" />
+            Pane
+          </Button>
+          {rowCount > 1 && (
+            <Button
+              variant="outline"
+              size="icon-sm"
+              className="h-5 w-5"
+              onClick={onRemoveRow}
+              title="Remove row"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
       </div>
       <div className="flex gap-1.5">
         {row.panes.map((pane) => (
