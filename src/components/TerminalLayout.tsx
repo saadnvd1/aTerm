@@ -183,6 +183,8 @@ export function TerminalLayout({
   // Listen for keyboard shortcuts
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      if (!isProjectActive) return;
+
       if (e.shiftKey && e.metaKey && e.key === "Enter") {
         e.preventDefault();
         if (maximizedPaneId) {
@@ -227,10 +229,12 @@ export function TerminalLayout({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [focusedPaneId, maximizedPaneId, minimizedPaneIds, layout, allPaneIds]);
+  }, [focusedPaneId, maximizedPaneId, minimizedPaneIds, layout, allPaneIds, isProjectActive]);
 
   // Listen for close-pane event from Rust (Cmd+W)
   useEffect(() => {
+    if (!isProjectActive) return;
+
     const unlisten = listen("close-pane", () => {
       const totalPanes = layout.rows.reduce((acc, r) => acc + r.panes.length, 0);
       if (focusedPaneId && totalPanes > 1) {
@@ -244,7 +248,7 @@ export function TerminalLayout({
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, [focusedPaneId, layout]);
+  }, [focusedPaneId, layout, isProjectActive]);
 
   function splitPaneWithShell(paneId: string) {
     const row = layout.rows.find((r) => r.panes.some((p) => p.id === paneId));

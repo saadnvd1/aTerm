@@ -46,6 +46,8 @@ interface Props {
   onCreateTask: (project: ProjectConfig) => void;
   onDeleteTask: (project: ProjectConfig, task: Task) => void;
   onDetachProject?: (project: ProjectConfig) => void;
+  onDeactivateProject?: (projectId: string) => void;
+  onReactivateProject?: (projectId: string) => void;
   showNotesModal?: boolean;
   onShowNotesModalChange?: (show: boolean) => void;
   transientTerminals?: TransientTerminal[];
@@ -68,6 +70,8 @@ export function ProjectSidebar({
   onCreateTask,
   onDeleteTask,
   onDetachProject,
+  onDeactivateProject,
+  onReactivateProject,
   showNotesModal = false,
   onShowNotesModalChange,
   transientTerminals = [],
@@ -224,7 +228,8 @@ export function ProjectSidebar({
             filtered.map((project) => {
               const layout = config.layouts.find((l) => l.id === project.layoutId);
               const isSelected = selectedProject?.id === project.id;
-              const useColorBg = isSelected && project.color;
+              const isDeactivated = !!project.deactivated;
+              const useColorBg = isSelected && project.color && !isDeactivated;
               const useLightText = useColorBg ? shouldUseLightText(project.color!) : false;
               const tasks = project.tasks || [];
               return (
@@ -235,7 +240,8 @@ export function ProjectSidebar({
                     className={cn(
                       "w-full px-3 py-2.5 flex items-center gap-2.5 bg-transparent border-none rounded-md cursor-pointer text-left transition-colors",
                       !useColorBg && "text-foreground hover:bg-accent",
-                      isSelected && !useColorBg && "bg-accent"
+                      isSelected && !useColorBg && "bg-accent",
+                      isDeactivated && "opacity-40"
                     )}
                     style={useColorBg ? { backgroundColor: project.color } : undefined}
                   >
@@ -369,35 +375,39 @@ export function ProjectSidebar({
             >
               Project Settings...
             </button>
-            <button
-              className="w-full px-3 py-2 bg-transparent border-none rounded text-foreground text-xs cursor-pointer text-left transition-colors hover:bg-accent"
-              onClick={() => {
-                onCreateTask(contextMenu.project);
-                setContextMenu(null);
-              }}
-            >
-              Create Task...
-            </button>
-            <div className="h-px bg-border my-1" />
-            <button
-              className="w-full px-3 py-2 bg-transparent border-none rounded text-foreground text-xs cursor-pointer text-left transition-colors hover:bg-accent"
-              onClick={() => {
-                onSaveWindowArrangement(contextMenu.project.id);
-                setContextMenu(null);
-              }}
-            >
-              Save Window Arrangement
-            </button>
-            <button
-              className="w-full px-3 py-2 bg-transparent border-none rounded text-foreground text-xs cursor-pointer text-left transition-colors hover:bg-accent"
-              onClick={() => {
-                onRestoreWindowArrangement(contextMenu.project.id);
-                setContextMenu(null);
-              }}
-            >
-              Restore Window Arrangement
-            </button>
-            {onDetachProject && (
+            {!contextMenu.project.deactivated && (
+              <>
+                <button
+                  className="w-full px-3 py-2 bg-transparent border-none rounded text-foreground text-xs cursor-pointer text-left transition-colors hover:bg-accent"
+                  onClick={() => {
+                    onCreateTask(contextMenu.project);
+                    setContextMenu(null);
+                  }}
+                >
+                  Create Task...
+                </button>
+                <div className="h-px bg-border my-1" />
+                <button
+                  className="w-full px-3 py-2 bg-transparent border-none rounded text-foreground text-xs cursor-pointer text-left transition-colors hover:bg-accent"
+                  onClick={() => {
+                    onSaveWindowArrangement(contextMenu.project.id);
+                    setContextMenu(null);
+                  }}
+                >
+                  Save Window Arrangement
+                </button>
+                <button
+                  className="w-full px-3 py-2 bg-transparent border-none rounded text-foreground text-xs cursor-pointer text-left transition-colors hover:bg-accent"
+                  onClick={() => {
+                    onRestoreWindowArrangement(contextMenu.project.id);
+                    setContextMenu(null);
+                  }}
+                >
+                  Restore Window Arrangement
+                </button>
+              </>
+            )}
+            {onDetachProject && !contextMenu.project.deactivated && (
               <button
                 className="w-full px-3 py-2 bg-transparent border-none rounded text-foreground text-xs cursor-pointer text-left transition-colors hover:bg-accent"
                 onClick={() => {
@@ -409,6 +419,27 @@ export function ProjectSidebar({
               </button>
             )}
             <div className="h-px bg-border my-1" />
+            {contextMenu.project.deactivated ? (
+              <button
+                className="w-full px-3 py-2 bg-transparent border-none rounded text-foreground text-xs cursor-pointer text-left transition-colors hover:bg-accent"
+                onClick={() => {
+                  onReactivateProject?.(contextMenu.project.id);
+                  setContextMenu(null);
+                }}
+              >
+                Reactivate
+              </button>
+            ) : (
+              <button
+                className="w-full px-3 py-2 bg-transparent border-none rounded text-foreground text-xs cursor-pointer text-left transition-colors hover:bg-accent"
+                onClick={() => {
+                  onDeactivateProject?.(contextMenu.project.id);
+                  setContextMenu(null);
+                }}
+              >
+                Deactivate
+              </button>
+            )}
             <button
               className="w-full px-3 py-2 bg-transparent border-none rounded text-destructive text-xs cursor-pointer text-left transition-colors hover:bg-destructive/10"
               onClick={() => handleRemoveProject(contextMenu.project.id)}

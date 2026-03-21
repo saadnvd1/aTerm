@@ -17,6 +17,7 @@ export interface ProjectConfig {
   color?: string; // Hex color for project branding (affects terminal headers)
   tasks?: Task[];
   scratchNotes?: ScratchNote[];
+  deactivated?: boolean;
 }
 
 export interface AppConfig {

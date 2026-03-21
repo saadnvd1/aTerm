@@ -5,6 +5,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ProjectSidebar } from "./components/ProjectSidebar";
 import { TerminalLayout } from "./components/TerminalLayout";
 import { ExitConfirmDialog } from "./components/ExitConfirmDialog";
+import { DeactivateConfirmDialog } from "./components/DeactivateConfirmDialog";
 import { StatusBar } from "./components/StatusBar";
 import { CreateTaskModal } from "./components/CreateTaskModal";
 import { TaskView } from "./components/TaskView";
@@ -13,6 +14,7 @@ import { useConfig, useTasks, useLayouts, useKeyboardShortcuts, useTransientTerm
 import { useDetachedWindows } from "./hooks/useDetachedWindows";
 import { NewTerminalModal } from "./components/NewTerminalModal";
 import { TransientTerminalView } from "./components/TransientTerminalView";
+import { spawnedPtys } from "./components/terminal-pane";
 import type { ProjectConfig } from "./lib/config";
 import appIcon from "./assets/icon.png";
 
@@ -62,6 +64,8 @@ export default function App() {
     handleAddGitPane,
     handleAddEditorPane,
     ensureEditorPane,
+    deactivateProject,
+    reactivateProject,
     cleanupRemovedProjects,
   } = useLayouts({ config, updateConfig, selectedProject });
 
@@ -78,6 +82,7 @@ export default function App() {
 
   const [showExitDialog, setShowExitDialog] = useState(false);
   const [activePtyCount, setActivePtyCount] = useState(0);
+  const [deactivateConfirm, setDeactivateConfirm] = useState<{ projectId: string; projectName: string; ptyCount: number } | null>(null);
   const [createTaskProject, setCreateTaskProject] = useState<ProjectConfig | null>(null);
   const [showNotesModal, setShowNotesModal] = useState(false);
   const [showFileSearch, setShowFileSearch] = useState(false);
@@ -181,6 +186,31 @@ export default function App() {
     await invoke("force_exit");
   }
 
+  function handleDeactivateRequest(projectId: string) {
+    const project = config.projects.find((p) => p.id === projectId);
+    if (!project) return;
+
+    // Count active PTYs for this project
+    const prefix = `${projectId}-`;
+    let ptyCount = 0;
+    for (const id of spawnedPtys) {
+      if (id.startsWith(prefix)) ptyCount++;
+    }
+
+    if (ptyCount > 0) {
+      setDeactivateConfirm({ projectId, projectName: project.name, ptyCount });
+    } else {
+      deactivateProject(projectId);
+    }
+  }
+
+  function handleDeactivateConfirm() {
+    if (deactivateConfirm) {
+      deactivateProject(deactivateConfirm.projectId);
+      setDeactivateConfirm(null);
+    }
+  }
+
   function handleOpenGitFromStatusBar() {
     if (selectedTask && selectedProject) {
       handleAddGitPaneToTask(selectedTask);
@@ -239,6 +269,13 @@ export default function App() {
         onConfirm={handleExitConfirm}
         onCancel={() => setShowExitDialog(false)}
       />
+      <DeactivateConfirmDialog
+        isOpen={!!deactivateConfirm}
+        projectName={deactivateConfirm?.projectName || ""}
+        activePtyCount={deactivateConfirm?.ptyCount || 0}
+        onConfirm={handleDeactivateConfirm}
+        onCancel={() => setDeactivateConfirm(null)}
+      />
       <div style={styles.mainArea}>
         {sidebarVisible && !zenMode && (
           <ProjectSidebar
@@ -255,6 +292,8 @@ export default function App() {
             onCreateTask={(project) => setCreateTaskProject(project)}
             onDeleteTask={handleDeleteTask}
             onDetachProject={handleDetachProject}
+            onDeactivateProject={handleDeactivateRequest}
+            onReactivateProject={reactivateProject}
             showNotesModal={showNotesModal}
             onShowNotesModalChange={setShowNotesModal}
             transientTerminals={transientTerminals}

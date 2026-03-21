@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { AppConfig, ProjectConfig } from "../lib/config";
 import type { Layout } from "../lib/layouts";
+import { killPty } from "../components/terminal-pane";
 
 interface UseLayoutsProps {
   config: AppConfig;
@@ -15,7 +16,7 @@ export function useLayouts({ config, updateConfig, selectedProject }: UseLayouts
 
   // Initialize runtime layout when project is first opened
   useEffect(() => {
-    if (selectedProject && !openedProjects.has(selectedProject.id)) {
+    if (selectedProject && !selectedProject.deactivated && !openedProjects.has(selectedProject.id)) {
       setOpenedProjects((prev) => new Set([...prev, selectedProject.id]));
       const savedLayout = config.layouts.find((l) => l.id === selectedProject.layoutId) || config.layouts[0];
       if (savedLayout && !runtimeLayouts[selectedProject.id]) {
@@ -245,6 +246,46 @@ export function useLayouts({ config, updateConfig, selectedProject }: UseLayouts
     return true;
   }
 
+  // Deactivate a project: kill all PTYs, remove from opened set
+  function deactivateProject(projectId: string) {
+    // Kill all PTYs for this project
+    const layout = runtimeLayouts[projectId];
+    if (layout) {
+      for (const row of layout.rows) {
+        for (const pane of row.panes) {
+          const terminalId = `${projectId}-${pane.id}`;
+          killPty(terminalId);
+        }
+      }
+    }
+
+    // Remove from opened projects and runtime layouts
+    setOpenedProjects((prev) => {
+      const next = new Set(prev);
+      next.delete(projectId);
+      return next;
+    });
+    setRuntimeLayouts((prev) => {
+      const next = { ...prev };
+      delete next[projectId];
+      return next;
+    });
+
+    // Persist deactivated state
+    const newProjects = config.projects.map((p) =>
+      p.id === projectId ? { ...p, deactivated: true } : p
+    );
+    updateConfig({ ...config, projects: newProjects });
+  }
+
+  // Reactivate a project: clear deactivated flag (terminals will spawn on next select)
+  function reactivateProject(projectId: string) {
+    const newProjects = config.projects.map((p) =>
+      p.id === projectId ? { ...p, deactivated: undefined } : p
+    );
+    updateConfig({ ...config, projects: newProjects });
+  }
+
   // Cleanup when projects are removed
   function cleanupRemovedProjects(projectIds: Set<string>) {
     const newOpened = new Set([...openedProjects].filter((id) => projectIds.has(id)));
@@ -273,6 +314,8 @@ export function useLayouts({ config, updateConfig, selectedProject }: UseLayouts
     handleAddGitPane,
     handleAddEditorPane,
     ensureEditorPane,
+    deactivateProject,
+    reactivateProject,
     cleanupRemovedProjects,
   };
 }
