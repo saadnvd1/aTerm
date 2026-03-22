@@ -31,6 +31,7 @@ export interface AppConfig {
   defaultScrollback?: number; // Lines to keep in scrollback buffer (default: 10000)
   // Per-pane font size overrides, keyed by pane instance ID (e.g., "projectId-paneId")
   paneFontSizes?: Record<string, number>;
+  smoothOutput?: boolean; // RAF-batch PTY writes to reduce screen redraw flicker (experimental)
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -43,6 +44,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   defaultFontSize: 13,
   defaultScrollback: 10000,
   paneFontSizes: {},
+  smoothOutput: false,
 };
 
 export function createProject(

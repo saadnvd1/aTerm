@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { ATSectionHeader } from "@/components/ui/at-section-header";
 import { useTheme } from "../../context/ThemeContext";
 import { getThemeList } from "../../lib/themes";
@@ -7,17 +8,21 @@ import { getThemeList } from "../../lib/themes";
 interface AppearanceTabProps {
   defaultFontSize: number;
   defaultScrollback: number;
+  smoothOutput: boolean;
   appVersion: string;
   onFontSizeChange: (size: number) => void;
   onScrollbackChange: (size: number) => void;
+  onSmoothOutputChange: (enabled: boolean) => void;
 }
 
 export function AppearanceTab({
   defaultFontSize,
   defaultScrollback,
+  smoothOutput,
   appVersion,
   onFontSizeChange,
   onScrollbackChange,
+  onSmoothOutputChange,
 }: AppearanceTabProps) {
   const { themeId, setThemeId } = useTheme();
   const themes = getThemeList();
@@ -83,6 +88,22 @@ export function AppearanceTab({
         <p className="text-[10px] text-muted-foreground mt-2">
           Lines kept in terminal history. Higher values use more memory (~7MB per 10k lines per terminal).
         </p>
+      </div>
+
+      <div className="mb-6">
+        <ATSectionHeader>Experimental</ATSectionHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm">Smooth Output</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Batches terminal output per frame to reduce screen redraw flicker during AI agent work.
+            </p>
+          </div>
+          <Switch
+            checked={smoothOutput}
+            onCheckedChange={onSmoothOutputChange}
+          />
+        </div>
       </div>
 
       {appVersion && (

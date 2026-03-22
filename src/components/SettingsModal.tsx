@@ -114,9 +114,11 @@ export function SettingsModal({ isOpen, onClose, config, onConfigChange }: Props
             <AppearanceTab
               defaultFontSize={config.defaultFontSize ?? 13}
               defaultScrollback={config.defaultScrollback ?? 10000}
+              smoothOutput={config.smoothOutput ?? false}
               appVersion={appVersion}
               onFontSizeChange={(size) => onConfigChange({ ...config, defaultFontSize: size })}
               onScrollbackChange={(size) => onConfigChange({ ...config, defaultScrollback: size })}
+              onSmoothOutputChange={(enabled) => onConfigChange({ ...config, smoothOutput: enabled })}
             />
           </TabsContent>
 

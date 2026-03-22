@@ -3,6 +3,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { invoke } from "@tauri-apps/api/core";
+import { PtyWriteBatcher } from "./pty-write-batcher";
 
 // Track spawned PTYs globally so we don't respawn on remount (e.g., after drag)
 export const spawnedPtys = new Set<string>();
@@ -14,6 +15,7 @@ export interface TerminalInstance {
   searchAddon: SearchAddon;
   serializeAddon: SerializeAddon;
   unlisten: (() => void) | null;
+  batcher: PtyWriteBatcher | null;
 }
 
 export const terminalInstances = new Map<string, TerminalInstance>();
@@ -33,6 +35,7 @@ export function killPty(id: string) {
   const instance = terminalInstances.get(id);
   if (instance) {
     instance.unlisten?.();
+    instance.batcher?.dispose();
     instance.terminal.dispose();
     terminalInstances.delete(id);
   }

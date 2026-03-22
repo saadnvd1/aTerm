@@ -48,6 +48,12 @@ Uses CSS positioning, not conditional rendering. Maximized pane gets `position: 
 ### Keyboard Shortcuts in Terminal
 xterm.js captures keyboard events. Use `onKeyDownCapture` on container div to intercept before xterm. Store callbacks in refs to avoid stale closures.
 
+### Event Handlers Across Projects
+Global event handlers (Cmd+W via Tauri `listen`, Cmd+D via `window.addEventListener`) must use **refs** for `isProjectActive`, `focusedPaneId`, and `layout` — not closure values. Multiple TerminalLayout instances are mounted simultaneously (hidden via CSS), so stale closures can execute shortcuts in the wrong project. Pattern: register listener once (`[]` deps), read `ref.current` inside callback.
+
+### Smooth Output (PTY Write Batching)
+`PtyWriteBatcher` in `terminal-pane/pty-write-batcher.ts` coalesces rapid PTY output into one `terminal.write()` per animation frame. Mitigates Claude Code's screen redraw flicker (anthropics/claude-code#367). Gated behind Settings > Appearance > Smooth Output. Uses a module-level `smoothOutputEnabled` flag (set by App.tsx, read by TerminalPane) to avoid prop drilling.
+
 ### Profile/Layout System
 - **Profiles**: Reusable terminal configs (id, name, command, color, type)
   - `type: "terminal"` (default) - xterm.js terminal pane

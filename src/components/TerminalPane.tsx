@@ -19,6 +19,8 @@ import {
   terminalInstances,
   serializeRefs,
   base64ToUint8Array,
+  PtyWriteBatcher,
+  smoothOutputEnabled,
   MIN_FONT_SIZE,
   MAX_FONT_SIZE,
   DEFAULT_SCROLLBACK,
@@ -71,7 +73,8 @@ function fitPreservingScroll(terminal: Terminal, fitAddon: FitAddon) {
 
   if (!isAtBottom) {
     // User was scrolled up - restore their position
-    terminal.scrollToLine(viewportY);
+    // Clamp to new baseY in case buffer shrank
+    terminal.scrollToLine(Math.min(viewportY, buffer.baseY));
   }
   // If at bottom, fit() keeps us there naturally
 }
@@ -292,7 +295,7 @@ export function TerminalPane({
 
     // Fit terminal
     requestAnimationFrame(() => {
-      fitAddon.fit();
+      fitPreservingScroll(terminal, fitAddon);
       invoke("resize_pty", { id, cols: terminal.cols, rows: terminal.rows }).catch(console.error);
     });
 
@@ -343,13 +346,22 @@ export function TerminalPane({
     // Set up PTY output listener
     let unlistenFn: (() => void) | null = null;
 
+    // Write batcher - coalesces rapid PTY output into one xterm.js write per frame
+    // This mitigates Claude Code's screen redraw flicker (anthropics/claude-code#367)
+    // Gated behind Settings > Appearance > Smooth Output
+    const batcher = new PtyWriteBatcher(terminal);
+
     if (isNewInstance || !instance?.unlisten) {
       const decoder = new TextDecoder("utf-8", { fatal: false });
 
       listen<string>(`pty-output-${id}`, (event) => {
         const rawData = base64ToUint8Array(event.payload);
-        // Write directly to terminal without RAF batching for lower latency
-        terminal.write(decoder.decode(rawData, { stream: true }));
+        const decoded = decoder.decode(rawData, { stream: true });
+        if (smoothOutputEnabled) {
+          batcher.write(decoded);
+        } else {
+          terminal.write(decoded);
+        }
 
         // Debounce + idle detection for initial prompt injection
         if (initialInput && !initialPromptSent) {
@@ -401,6 +413,7 @@ export function TerminalPane({
       searchAddon,
       serializeAddon,
       unlisten: unlistenFn || instance?.unlisten || null,
+      batcher,
     });
 
     return () => {
@@ -411,6 +424,7 @@ export function TerminalPane({
         clearTimeout(fallbackTimer);
       }
       clearTimeout(resizeTimeout);
+      batcher.dispose();
       terminal.element?.removeEventListener("click", handleTerminalClick);
       resizeObserver.disconnect();
     };

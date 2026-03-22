@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import {
   DndContext,
@@ -65,6 +65,22 @@ export function TerminalLayout({
   const [minimizedPaneIds, setMinimizedPaneIds] = useState<Set<string>>(new Set());
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [renamingPaneId, setRenamingPaneId] = useState<string | null>(null);
+
+  // Refs for values used in event handlers to avoid stale closures
+  const isProjectActiveRef = useRef(isProjectActive);
+  const focusedPaneIdRef = useRef(focusedPaneId);
+  const layoutRef = useRef(layout);
+  const maximizedPaneIdRef = useRef(maximizedPaneId);
+  isProjectActiveRef.current = isProjectActive;
+  focusedPaneIdRef.current = focusedPaneId;
+  layoutRef.current = layout;
+  maximizedPaneIdRef.current = maximizedPaneId;
+
+  // Refs for handler functions called from event listeners
+  const cyclePanesRef = useRef(cyclePanes);
+  const minimizePaneRef = useRef(minimizePane);
+  const splitPaneWithShellRef = useRef(splitPaneWithShell);
+  const closePaneByIdRef = useRef(closePaneById);
 
   // dnd-kit sensors
   const sensors = useSensors(
@@ -181,16 +197,18 @@ export function TerminalLayout({
   }
 
   // Listen for keyboard shortcuts
+  // Uses refs to always read current values — prevents stale closures from
+  // executing shortcuts in the wrong project during project switches.
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (!isProjectActive) return;
+      if (!isProjectActiveRef.current) return;
 
       if (e.shiftKey && e.metaKey && e.key === "Enter") {
         e.preventDefault();
-        if (maximizedPaneId) {
+        if (maximizedPaneIdRef.current) {
           setMaximizedPaneId(null);
-        } else if (focusedPaneId) {
-          setMaximizedPaneId(focusedPaneId);
+        } else if (focusedPaneIdRef.current) {
+          setMaximizedPaneId(focusedPaneIdRef.current);
         }
         return;
       }
@@ -198,30 +216,30 @@ export function TerminalLayout({
       // Cmd+Shift+[ - previous pane
       if (e.shiftKey && e.metaKey && e.key === "[") {
         e.preventDefault();
-        cyclePanes("prev");
+        cyclePanesRef.current("prev");
         return;
       }
 
       // Cmd+Shift+] - next pane
       if (e.shiftKey && e.metaKey && e.key === "]") {
         e.preventDefault();
-        cyclePanes("next");
+        cyclePanesRef.current("next");
         return;
       }
 
       // Cmd+Shift+M - minimize focused pane
       if (e.shiftKey && e.metaKey && e.key === "m") {
         e.preventDefault();
-        if (focusedPaneId) {
-          minimizePane(focusedPaneId);
+        if (focusedPaneIdRef.current) {
+          minimizePaneRef.current(focusedPaneIdRef.current);
         }
         return;
       }
 
       if (e.metaKey && e.key === "d") {
         e.preventDefault();
-        if (focusedPaneId) {
-          splitPaneWithShell(focusedPaneId);
+        if (focusedPaneIdRef.current) {
+          splitPaneWithShellRef.current(focusedPaneIdRef.current);
         }
         return;
       }
@@ -229,18 +247,20 @@ export function TerminalLayout({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [focusedPaneId, maximizedPaneId, minimizedPaneIds, layout, allPaneIds, isProjectActive]);
+  }, []);
 
   // Listen for close-pane event from Rust (Cmd+W)
+  // Registered once, reads refs for current values to avoid async unlisten race conditions.
   useEffect(() => {
-    if (!isProjectActive) return;
-
     const unlisten = listen("close-pane", () => {
-      const totalPanes = layout.rows.reduce((acc, r) => acc + r.panes.length, 0);
-      if (focusedPaneId && totalPanes > 1) {
-        const row = layout.rows.find((r) => r.panes.some((p) => p.id === focusedPaneId));
+      if (!isProjectActiveRef.current) return;
+      const currentLayout = layoutRef.current;
+      const currentFocusedPaneId = focusedPaneIdRef.current;
+      const totalPanes = currentLayout.rows.reduce((acc, r) => acc + r.panes.length, 0);
+      if (currentFocusedPaneId && totalPanes > 1) {
+        const row = currentLayout.rows.find((r) => r.panes.some((p) => p.id === currentFocusedPaneId));
         if (row) {
-          closePaneById(focusedPaneId, row.id);
+          closePaneByIdRef.current(currentFocusedPaneId, row.id);
         }
       }
     });
@@ -248,7 +268,7 @@ export function TerminalLayout({
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, [focusedPaneId, layout, isProjectActive]);
+  }, []);
 
   function splitPaneWithShell(paneId: string) {
     const row = layout.rows.find((r) => r.panes.some((p) => p.id === paneId));
@@ -546,6 +566,12 @@ export function TerminalLayout({
 
     onLayoutChange({ ...layout, rows: newRows });
   }
+
+  // Keep function refs up to date (must be after function definitions)
+  cyclePanesRef.current = cyclePanes;
+  minimizePaneRef.current = minimizePane;
+  splitPaneWithShellRef.current = splitPaneWithShell;
+  closePaneByIdRef.current = closePaneById;
 
   const totalPanes = layout.rows.reduce((acc, r) => acc + r.panes.length, 0);
 

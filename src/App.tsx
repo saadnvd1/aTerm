@@ -14,7 +14,7 @@ import { useConfig, useTasks, useLayouts, useKeyboardShortcuts, useTransientTerm
 import { useDetachedWindows } from "./hooks/useDetachedWindows";
 import { NewTerminalModal } from "./components/NewTerminalModal";
 import { TransientTerminalView } from "./components/TransientTerminalView";
-import { spawnedPtys } from "./components/terminal-pane";
+import { spawnedPtys, setSmoothOutputEnabled } from "./components/terminal-pane";
 import type { ProjectConfig } from "./lib/config";
 import appIcon from "./assets/icon.png";
 
@@ -68,6 +68,9 @@ export default function App() {
     reactivateProject,
     cleanupRemovedProjects,
   } = useLayouts({ config, updateConfig, selectedProject });
+
+  // Sync smooth output setting to module-level variable (avoids prop drilling to TerminalPane)
+  setSmoothOutputEnabled(config.smoothOutput ?? false);
 
   const { detachPane, detachProject } = useDetachedWindows();
 
