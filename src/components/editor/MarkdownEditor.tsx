@@ -5,7 +5,8 @@
 
 import { useRef, useEffect } from "react";
 import { EditorView, keymap, Decoration, DecorationSet, ViewPlugin, ViewUpdate } from "@codemirror/view";
-import { EditorState, RangeSetBuilder, Compartment } from "@codemirror/state";
+import { EditorState, Compartment } from "@codemirror/state";
+import type { Range } from "@codemirror/state";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { defaultKeymap, indentWithTab, history, historyKeymap } from "@codemirror/commands";
 import { syntaxTree, ensureSyntaxTree } from "@codemirror/language";
@@ -66,8 +67,7 @@ const richMarkdownPlugin = ViewPlugin.fromClass(
     }
     build(view: EditorView): DecorationSet {
       const doc = view.state.doc;
-      const marks: { from: number; to: number; dec: Decoration }[] = [];
-      const lines: { pos: number; dec: Decoration }[] = [];
+      const widgets: Range<Decoration>[] = [];
 
       ensureSyntaxTree(view.state, view.viewport.to, 100);
 
@@ -84,46 +84,46 @@ const richMarkdownPlugin = ViewPlugin.fromClass(
             case "ATXHeading5":
             case "ATXHeading6": {
               const level = parseInt(name.slice(-1));
-              marks.push({ from, to, dec: headingMarks[level - 1] });
+              widgets.push(headingMarks[level - 1].range(from, to));
               break;
             }
             case "HeaderMark": {
               if (!cursorNear) {
                 const after = doc.sliceString(to, to + 1);
                 const end = after === " " ? to + 1 : to;
-                marks.push({ from, to: end, dec: hiddenMark });
+                widgets.push(hiddenMark.range(from, end));
               }
               break;
             }
             case "StrongEmphasis": {
-              marks.push({ from, to, dec: boldMark });
+              widgets.push(boldMark.range(from, to));
               if (!cursorNear) {
-                marks.push({ from, to: from + 2, dec: hiddenMark });
-                marks.push({ from: to - 2, to, dec: hiddenMark });
+                widgets.push(hiddenMark.range(from, from + 2));
+                widgets.push(hiddenMark.range(to - 2, to));
               }
               break;
             }
             case "Emphasis": {
-              marks.push({ from, to, dec: italicMark });
+              widgets.push(italicMark.range(from, to));
               if (!cursorNear) {
-                marks.push({ from, to: from + 1, dec: hiddenMark });
-                marks.push({ from: to - 1, to, dec: hiddenMark });
+                widgets.push(hiddenMark.range(from, from + 1));
+                widgets.push(hiddenMark.range(to - 1, to));
               }
               break;
             }
             case "Strikethrough": {
-              marks.push({ from, to, dec: strikeMark });
+              widgets.push(strikeMark.range(from, to));
               if (!cursorNear) {
-                marks.push({ from, to: from + 2, dec: hiddenMark });
-                marks.push({ from: to - 2, to, dec: hiddenMark });
+                widgets.push(hiddenMark.range(from, from + 2));
+                widgets.push(hiddenMark.range(to - 2, to));
               }
               break;
             }
             case "InlineCode": {
-              marks.push({ from, to, dec: inlineCodeMark });
+              widgets.push(inlineCodeMark.range(from, to));
               if (!cursorNear) {
-                marks.push({ from, to: from + 1, dec: hiddenMark });
-                marks.push({ from: to - 1, to, dec: hiddenMark });
+                widgets.push(hiddenMark.range(from, from + 1));
+                widgets.push(hiddenMark.range(to - 1, to));
               }
               break;
             }
@@ -132,16 +132,16 @@ const richMarkdownPlugin = ViewPlugin.fromClass(
                 const content = doc.sliceString(from, to);
                 const bracketEnd = content.indexOf("]");
                 if (bracketEnd > 0) {
-                  marks.push({ from: from + 1, to: from + bracketEnd, dec: linkTextMark });
-                  marks.push({ from, to: from + 1, dec: hiddenMark });
-                  marks.push({ from: from + bracketEnd, to, dec: hiddenMark });
+                  widgets.push(linkTextMark.range(from + 1, from + bracketEnd));
+                  widgets.push(hiddenMark.range(from, from + 1));
+                  widgets.push(hiddenMark.range(from + bracketEnd, to));
                 }
               }
               break;
             }
             case "QuoteMark": {
               if (!cursorNear) {
-                marks.push({ from, to, dec: hiddenMark });
+                widgets.push(hiddenMark.range(from, to));
               }
               break;
             }
@@ -149,14 +149,14 @@ const richMarkdownPlugin = ViewPlugin.fromClass(
               const startLine = doc.lineAt(from).number;
               const endLine = doc.lineAt(Math.min(to, doc.length)).number;
               for (let i = startLine; i <= endLine; i++) {
-                lines.push({ pos: doc.line(i).from, dec: blockquoteMark });
+                widgets.push(blockquoteMark.range(doc.line(i).from));
               }
               break;
             }
             case "HorizontalRule": {
-              lines.push({ pos: doc.lineAt(from).from, dec: Decoration.line({ class: "cm-md-hr-line" }) });
+              widgets.push(Decoration.line({ class: "cm-md-hr-line" }).range(doc.lineAt(from).from));
               if (!cursorNear) {
-                marks.push({ from, to, dec: hiddenMark });
+                widgets.push(hiddenMark.range(from, to));
               }
               break;
             }
@@ -164,7 +164,7 @@ const richMarkdownPlugin = ViewPlugin.fromClass(
               if (!cursorNear) {
                 const marker = doc.sliceString(from, to);
                 if (marker === "-" || marker === "*") {
-                  marks.push({ from, to, dec: Decoration.mark({ class: "cm-md-list-bullet" }) });
+                  widgets.push(Decoration.mark({ class: "cm-md-list-bullet" }).range(from, to));
                 }
               }
               break;
@@ -173,36 +173,8 @@ const richMarkdownPlugin = ViewPlugin.fromClass(
         },
       });
 
-      // Sort mark decorations by position (required by RangeSetBuilder)
-      marks.sort((a, b) => a.from - b.from || a.to - b.to);
-      lines.sort((a, b) => a.pos - b.pos);
-
-      // Deduplicate line decorations (blockquote lines can overlap)
-      const seenLines = new Set<number>();
-      const uniqueLines = lines.filter((l) => {
-        if (seenLines.has(l.pos)) return false;
-        seenLines.add(l.pos);
-        return true;
-      });
-
-      // Build decoration set: line decorations first (from===to), then marks
-      const builder = new RangeSetBuilder<Decoration>();
-      let li = 0;
-      let mi = 0;
-      while (li < uniqueLines.length || mi < marks.length) {
-        const linePos = li < uniqueLines.length ? uniqueLines[li].pos : Infinity;
-        const markFrom = mi < marks.length ? marks[mi].from : Infinity;
-
-        if (linePos <= markFrom) {
-          builder.add(linePos, linePos, uniqueLines[li].dec);
-          li++;
-        } else {
-          builder.add(marks[mi].from, marks[mi].to, marks[mi].dec);
-          mi++;
-        }
-      }
-
-      return builder.finish();
+      // Decoration.set sorts automatically
+      return Decoration.set(widgets, true);
     }
   },
   { decorations: (v) => v.decorations }
