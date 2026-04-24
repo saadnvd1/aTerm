@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { PaneHeader } from "../PaneHeader";
 import { CodeEditor } from "../editor/CodeEditor";
 import { MarkdownEditor } from "../editor/MarkdownEditor";
-import { AgentConfigSidebar } from "./AgentConfigSidebar";
+import { AgentConfigSidebar, type DynamicFile } from "./AgentConfigSidebar";
 import { AGENT_CONFIG_GROUPS, type AgentConfigFile } from "../../lib/agent-config";
 
 interface Props {
@@ -28,6 +28,7 @@ interface Props {
 interface OpenFile {
   configId: string;
   relativePath: string;
+  label: string;
   content: string;
   originalContent: string;
   isDirty: boolean;
@@ -58,7 +59,10 @@ export function AgentConfigPane({
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [openFiles, setOpenFiles] = useState<OpenFile[]>([]);
   const [fontSize, setFontSize] = useState(savedFontSize ?? DEFAULT_FONT_SIZE);
+  const [newFilePrompt, setNewFilePrompt] = useState<AgentConfigFile | null>(null);
+  const [newFileName, setNewFileName] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
+  const newFileInputRef = useRef<HTMLInputElement>(null);
 
   // Check which config files exist
   const checkExistence = useCallback(async () => {
@@ -81,10 +85,9 @@ export function AgentConfigPane({
     checkExistence();
   }, [checkExistence]);
 
-  // Open a config file
+  // Open a static config file
   const handleOpenFile = useCallback(
     async (configFile: AgentConfigFile) => {
-      // Already open? Just switch to it
       const existing = openFiles.find((f) => f.configId === configFile.id);
       if (existing) {
         setActiveFileId(configFile.id);
@@ -99,6 +102,7 @@ export function AgentConfigPane({
           {
             configId: configFile.id,
             relativePath: configFile.relativePath,
+            label: configFile.label,
             content,
             originalContent: content,
             isDirty: false,
@@ -113,24 +117,55 @@ export function AgentConfigPane({
     [cwd, openFiles]
   );
 
-  // Create a config file with default content
+  // Open a dynamic file from a directory
+  const handleOpenDynamicFile = useCallback(
+    async (dynFile: DynamicFile) => {
+      const existing = openFiles.find((f) => f.configId === dynFile.id);
+      if (existing) {
+        setActiveFileId(dynFile.id);
+        return;
+      }
+
+      const fullPath = `${cwd}/${dynFile.relativePath}`;
+      try {
+        const content = await invoke<string>("read_file_content", { path: fullPath });
+        setOpenFiles((prev) => [
+          ...prev,
+          {
+            configId: dynFile.id,
+            relativePath: dynFile.relativePath,
+            label: dynFile.label,
+            content,
+            originalContent: content,
+            isDirty: false,
+            language: dynFile.language,
+          },
+        ]);
+        setActiveFileId(dynFile.id);
+      } catch (err) {
+        console.error("Failed to open dynamic file:", err);
+      }
+    },
+    [cwd, openFiles]
+  );
+
+  // Create a static config file with default content
   const handleCreateFile = useCallback(
     async (configFile: AgentConfigFile) => {
       const fullPath = `${cwd}/${configFile.relativePath}`;
       const content = configFile.defaultContent || "";
 
       try {
-        // Ensure parent directories exist
         await invoke("create_parent_dirs", { path: fullPath });
         await invoke("write_file_content", { path: fullPath, content });
 
-        // Update existence map and open the file
         setExistenceMap((prev) => ({ ...prev, [configFile.id]: true }));
         setOpenFiles((prev) => [
           ...prev,
           {
             configId: configFile.id,
             relativePath: configFile.relativePath,
+            label: configFile.label,
             content,
             originalContent: content,
             isDirty: false,
@@ -144,6 +179,53 @@ export function AgentConfigPane({
     },
     [cwd]
   );
+
+  // Prompt to create a new file inside a directory
+  const handleCreateInDirectory = useCallback((configFile: AgentConfigFile) => {
+    const ext = configFile.directoryFilter || ".md";
+    setNewFileName(`new-file${ext}`);
+    setNewFilePrompt(configFile);
+    setTimeout(() => newFileInputRef.current?.focus(), 50);
+  }, []);
+
+  // Confirm creating a new file in a directory
+  const confirmNewFile = useCallback(async () => {
+    if (!newFilePrompt || !newFileName.trim()) {
+      setNewFilePrompt(null);
+      return;
+    }
+
+    const relativePath = `${newFilePrompt.relativePath}/${newFileName.trim()}`;
+    const fullPath = `${cwd}/${relativePath}`;
+    const content = "";
+
+    try {
+      await invoke("create_parent_dirs", { path: fullPath });
+      await invoke("write_file_content", { path: fullPath, content });
+
+      // Ensure directory shows as existing
+      setExistenceMap((prev) => ({ ...prev, [newFilePrompt.id]: true }));
+
+      const fileId = `${newFilePrompt.id}:${newFileName.trim()}`;
+      setOpenFiles((prev) => [
+        ...prev,
+        {
+          configId: fileId,
+          relativePath,
+          label: newFileName.trim(),
+          content,
+          originalContent: content,
+          isDirty: false,
+          language: newFilePrompt.language,
+        },
+      ]);
+      setActiveFileId(fileId);
+    } catch (err) {
+      console.error("Failed to create file:", err);
+    }
+
+    setNewFilePrompt(null);
+  }, [cwd, newFilePrompt, newFileName]);
 
   // Update content (marks dirty)
   const handleContentChange = useCallback((configId: string, newContent: string) => {
@@ -179,9 +261,7 @@ export function AgentConfigPane({
     (configId: string) => {
       const file = openFiles.find((f) => f.configId === configId);
       if (file?.isDirty) {
-        if (!window.confirm(`Save changes to ${file.relativePath}?`)) {
-          // Discard
-        } else {
+        if (window.confirm(`Save changes to ${file.relativePath}?`)) {
           const fullPath = `${cwd}/${file.relativePath}`;
           invoke("write_file_content", { path: fullPath, content: file.content });
         }
@@ -232,15 +312,6 @@ export function AgentConfigPane({
 
   const activeFile = openFiles.find((f) => f.configId === activeFileId) || null;
 
-  // Get the label for a config file by ID
-  const getLabel = (configId: string): string => {
-    for (const group of AGENT_CONFIG_GROUPS) {
-      const file = group.files.find((f) => f.id === configId);
-      if (file) return file.label;
-    }
-    return configId;
-  };
-
   return (
     <div
       ref={containerRef}
@@ -264,10 +335,13 @@ export function AgentConfigPane({
       <div className="flex flex-1 overflow-hidden">
         {/* Config file sidebar */}
         <AgentConfigSidebar
+          cwd={cwd}
           existenceMap={existenceMap}
           activeFileId={activeFileId}
           onOpenFile={handleOpenFile}
           onCreateFile={handleCreateFile}
+          onOpenDynamicFile={handleOpenDynamicFile}
+          onCreateInDirectory={handleCreateInDirectory}
         />
 
         {/* Editor area */}
@@ -286,7 +360,7 @@ export function AgentConfigPane({
                       : "text-muted-foreground hover:bg-accent/50"
                   )}
                 >
-                  <span>{getLabel(file.configId)}</span>
+                  <span>{file.label}</span>
                   {file.isDirty && (
                     <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
                   )}
@@ -303,6 +377,38 @@ export function AgentConfigPane({
                   </button>
                 </button>
               ))}
+            </div>
+          )}
+
+          {/* New file name input (shown when creating in directory) */}
+          {newFilePrompt && (
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-secondary/80">
+              <span className="text-xs text-muted-foreground">
+                New file in {newFilePrompt.label}
+              </span>
+              <input
+                ref={newFileInputRef}
+                type="text"
+                value={newFileName}
+                onChange={(e) => setNewFileName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") confirmNewFile();
+                  if (e.key === "Escape") setNewFilePrompt(null);
+                }}
+                className="flex-1 px-2 py-1 text-xs bg-background border border-border rounded outline-none focus:border-primary"
+              />
+              <button
+                onClick={confirmNewFile}
+                className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90"
+              >
+                Create
+              </button>
+              <button
+                onClick={() => setNewFilePrompt(null)}
+                className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+              >
+                Cancel
+              </button>
             </div>
           )}
 

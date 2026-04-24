@@ -7,6 +7,10 @@ export interface AgentConfigFile {
   description: string;
   language: "markdown" | "json" | "yaml" | "plaintext";
   defaultContent?: string;
+  /** If true, this entry represents a directory of files (e.g. .claude/skills/) */
+  isDirectory?: boolean;
+  /** File extension filter for directory entries (e.g. ".md") */
+  directoryFilter?: string;
 }
 
 export interface AgentGroup {
@@ -45,6 +49,24 @@ export const AGENT_CONFIG_GROUPS: AgentGroup[] = [
         description: "Local Claude Code settings (gitignored)",
         language: "json",
         defaultContent: '{\n  "permissions": {\n    "allow": [],\n    "deny": []\n  }\n}\n',
+      },
+      {
+        id: "claude-skills",
+        label: ".claude/skills/",
+        relativePath: ".claude/skills",
+        description: "Claude Code skill files (SKILL.md)",
+        language: "markdown",
+        isDirectory: true,
+        directoryFilter: ".md",
+      },
+      {
+        id: "claude-commands",
+        label: ".claude/commands/",
+        relativePath: ".claude/commands",
+        description: "Custom slash commands",
+        language: "markdown",
+        isDirectory: true,
+        directoryFilter: ".md",
       },
     ],
   },
@@ -103,8 +125,10 @@ export const AGENT_CONFIG_GROUPS: AgentGroup[] = [
         id: "cursor-mdc",
         label: ".cursor/rules/",
         relativePath: ".cursor/rules",
-        description: "Cursor rule files directory",
+        description: "Cursor rule files (.mdc)",
         language: "markdown",
+        isDirectory: true,
+        directoryFilter: ".mdc",
       },
     ],
   },

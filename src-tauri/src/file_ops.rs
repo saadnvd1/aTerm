@@ -1,5 +1,6 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use serde::Serialize;
 
 #[tauri::command]
 pub fn open_in_editor(path: String, editor: Option<String>) -> Result<(), String> {
@@ -49,4 +50,34 @@ pub fn create_parent_dirs(path: String) -> Result<(), String> {
     } else {
         Ok(())
     }
+}
+
+#[derive(Serialize)]
+pub struct DirFileEntry {
+    pub name: String,
+    pub path: String, // relative to the given root
+    pub is_dir: bool,
+}
+
+/// List files in a directory, returning entries relative to project root.
+/// Unlike list_project_directory, does not filter hidden files.
+#[tauri::command]
+pub fn list_dir_files(root: String, relative_path: String) -> Result<Vec<DirFileEntry>, String> {
+    let full_path = PathBuf::from(&root).join(&relative_path);
+    if !full_path.is_dir() {
+        return Ok(Vec::new());
+    }
+
+    let mut entries = Vec::new();
+    let read_dir = fs::read_dir(&full_path).map_err(|e| e.to_string())?;
+
+    for entry in read_dir.filter_map(|e| e.ok()) {
+        let name = entry.file_name().to_string_lossy().to_string();
+        let is_dir = entry.path().is_dir();
+        let rel_path = format!("{}/{}", relative_path, name);
+        entries.push(DirFileEntry { name, path: rel_path, is_dir });
+    }
+
+    entries.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    Ok(entries)
 }
