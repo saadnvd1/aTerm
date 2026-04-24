@@ -5,13 +5,13 @@
 
 import { useRef, useEffect } from "react";
 import { EditorView, keymap, Decoration, DecorationSet, ViewPlugin, ViewUpdate } from "@codemirror/view";
-import { EditorState, RangeSetBuilder } from "@codemirror/state";
+import { EditorState, RangeSetBuilder, Compartment } from "@codemirror/state";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { defaultKeymap, indentWithTab, history, historyKeymap } from "@codemirror/commands";
-import { syntaxTree } from "@codemirror/language";
+import { syntaxTree, ensureSyntaxTree } from "@codemirror/language";
 import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
 import type { SyntaxNodeRef } from "@lezer/common";
-import { useTheme } from "../../context/ThemeContext";
+
 
 interface Props {
   content: string;
@@ -41,7 +41,6 @@ const headingMarks = [
 ];
 
 const blockquoteMark = Decoration.line({ class: "cm-md-blockquote-line" });
-const hrLine = Decoration.line({ class: "cm-md-hr-line" });
 
 function cursorOnLine(view: EditorView, from: number, to: number): boolean {
   const doc = view.state.doc;
@@ -66,8 +65,11 @@ const richMarkdownPlugin = ViewPlugin.fromClass(
       }
     }
     build(view: EditorView): DecorationSet {
-      const builder = new RangeSetBuilder<Decoration>();
       const doc = view.state.doc;
+      const marks: { from: number; to: number; dec: Decoration }[] = [];
+      const lines: { pos: number; dec: Decoration }[] = [];
+
+      ensureSyntaxTree(view.state, view.viewport.to, 100);
 
       syntaxTree(view.state).iterate({
         enter: (node: SyntaxNodeRef) => {
@@ -82,46 +84,46 @@ const richMarkdownPlugin = ViewPlugin.fromClass(
             case "ATXHeading5":
             case "ATXHeading6": {
               const level = parseInt(name.slice(-1));
-              builder.add(from, to, headingMarks[level - 1]);
+              marks.push({ from, to, dec: headingMarks[level - 1] });
               break;
             }
             case "HeaderMark": {
               if (!cursorNear) {
                 const after = doc.sliceString(to, to + 1);
                 const end = after === " " ? to + 1 : to;
-                builder.add(from, end, hiddenMark);
+                marks.push({ from, to: end, dec: hiddenMark });
               }
               break;
             }
             case "StrongEmphasis": {
-              builder.add(from, to, boldMark);
+              marks.push({ from, to, dec: boldMark });
               if (!cursorNear) {
-                builder.add(from, from + 2, hiddenMark);
-                builder.add(to - 2, to, hiddenMark);
+                marks.push({ from, to: from + 2, dec: hiddenMark });
+                marks.push({ from: to - 2, to, dec: hiddenMark });
               }
               break;
             }
             case "Emphasis": {
-              builder.add(from, to, italicMark);
+              marks.push({ from, to, dec: italicMark });
               if (!cursorNear) {
-                builder.add(from, from + 1, hiddenMark);
-                builder.add(to - 1, to, hiddenMark);
+                marks.push({ from, to: from + 1, dec: hiddenMark });
+                marks.push({ from: to - 1, to, dec: hiddenMark });
               }
               break;
             }
             case "Strikethrough": {
-              builder.add(from, to, strikeMark);
+              marks.push({ from, to, dec: strikeMark });
               if (!cursorNear) {
-                builder.add(from, from + 2, hiddenMark);
-                builder.add(to - 2, to, hiddenMark);
+                marks.push({ from, to: from + 2, dec: hiddenMark });
+                marks.push({ from: to - 2, to, dec: hiddenMark });
               }
               break;
             }
             case "InlineCode": {
-              builder.add(from, to, inlineCodeMark);
+              marks.push({ from, to, dec: inlineCodeMark });
               if (!cursorNear) {
-                builder.add(from, from + 1, hiddenMark);
-                builder.add(to - 1, to, hiddenMark);
+                marks.push({ from, to: from + 1, dec: hiddenMark });
+                marks.push({ from: to - 1, to, dec: hiddenMark });
               }
               break;
             }
@@ -130,16 +132,16 @@ const richMarkdownPlugin = ViewPlugin.fromClass(
                 const content = doc.sliceString(from, to);
                 const bracketEnd = content.indexOf("]");
                 if (bracketEnd > 0) {
-                  builder.add(from + 1, from + bracketEnd, linkTextMark);
-                  builder.add(from, from + 1, hiddenMark);
-                  builder.add(from + bracketEnd, to, hiddenMark);
+                  marks.push({ from: from + 1, to: from + bracketEnd, dec: linkTextMark });
+                  marks.push({ from, to: from + 1, dec: hiddenMark });
+                  marks.push({ from: from + bracketEnd, to, dec: hiddenMark });
                 }
               }
               break;
             }
             case "QuoteMark": {
               if (!cursorNear) {
-                builder.add(from, to, hiddenMark);
+                marks.push({ from, to, dec: hiddenMark });
               }
               break;
             }
@@ -147,16 +149,14 @@ const richMarkdownPlugin = ViewPlugin.fromClass(
               const startLine = doc.lineAt(from).number;
               const endLine = doc.lineAt(Math.min(to, doc.length)).number;
               for (let i = startLine; i <= endLine; i++) {
-                const line = doc.line(i);
-                builder.add(line.from, line.from, blockquoteMark);
+                lines.push({ pos: doc.line(i).from, dec: blockquoteMark });
               }
               break;
             }
             case "HorizontalRule": {
-              const line = doc.lineAt(from);
-              builder.add(line.from, line.from, hrLine);
+              lines.push({ pos: doc.lineAt(from).from, dec: Decoration.line({ class: "cm-md-hr-line" }) });
               if (!cursorNear) {
-                builder.add(from, to, hiddenMark);
+                marks.push({ from, to, dec: hiddenMark });
               }
               break;
             }
@@ -164,7 +164,7 @@ const richMarkdownPlugin = ViewPlugin.fromClass(
               if (!cursorNear) {
                 const marker = doc.sliceString(from, to);
                 if (marker === "-" || marker === "*") {
-                  builder.add(from, to, Decoration.mark({ class: "cm-md-list-bullet" }));
+                  marks.push({ from, to, dec: Decoration.mark({ class: "cm-md-list-bullet" }) });
                 }
               }
               break;
@@ -173,6 +173,35 @@ const richMarkdownPlugin = ViewPlugin.fromClass(
         },
       });
 
+      // Sort mark decorations by position (required by RangeSetBuilder)
+      marks.sort((a, b) => a.from - b.from || a.to - b.to);
+      lines.sort((a, b) => a.pos - b.pos);
+
+      // Deduplicate line decorations (blockquote lines can overlap)
+      const seenLines = new Set<number>();
+      const uniqueLines = lines.filter((l) => {
+        if (seenLines.has(l.pos)) return false;
+        seenLines.add(l.pos);
+        return true;
+      });
+
+      // Build decoration set: line decorations first (from===to), then marks
+      const builder = new RangeSetBuilder<Decoration>();
+      let li = 0;
+      let mi = 0;
+      while (li < uniqueLines.length || mi < marks.length) {
+        const linePos = li < uniqueLines.length ? uniqueLines[li].pos : Infinity;
+        const markFrom = mi < marks.length ? marks[mi].from : Infinity;
+
+        if (linePos <= markFrom) {
+          builder.add(linePos, linePos, uniqueLines[li].dec);
+          li++;
+        } else {
+          builder.add(marks[mi].from, marks[mi].to, marks[mi].dec);
+          mi++;
+        }
+      }
+
       return builder.finish();
     }
   },
@@ -180,153 +209,112 @@ const richMarkdownPlugin = ViewPlugin.fromClass(
 );
 
 // ============================================================
+// Theme (static CSS — uses CSS variables so it works with any aTerm theme)
+// ============================================================
+
+const mdTheme = EditorView.theme(
+  {
+    "&": {
+      height: "100%",
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui, sans-serif',
+    },
+    ".cm-content": {
+      padding: "2em 48px",
+      maxWidth: "900px",
+      margin: "0 auto",
+      lineHeight: "1.75",
+      caretColor: "var(--foreground)",
+    },
+    ".cm-scroller": { overflow: "auto", height: "100%", fontFamily: "inherit" },
+    ".cm-focused": { outline: "none" },
+    ".cm-line": { padding: "0" },
+    ".cm-cursor": { borderLeftColor: "var(--foreground)" },
+    ".cm-selectionBackground": { background: "hsl(var(--primary) / 0.3) !important" },
+    "&.cm-focused .cm-selectionBackground": { background: "hsl(var(--primary) / 0.3) !important" },
+    ".cm-gutters": { display: "none" },
+
+    ".cm-md-hidden": { fontSize: "0", width: "0", display: "inline", color: "transparent" },
+    ".cm-md-heading": { fontWeight: "700", lineHeight: "1.3" },
+    ".cm-md-h1": {
+      fontSize: "2em", fontWeight: "800", letterSpacing: "-0.02em",
+      borderBottom: "2px solid hsl(var(--border))", paddingBottom: "0.3em",
+      display: "inline-block", width: "100%",
+    },
+    ".cm-md-h2": {
+      fontSize: "1.6em", fontWeight: "700",
+      borderBottom: "1px solid hsl(var(--border))", paddingBottom: "0.2em",
+      display: "inline-block", width: "100%",
+    },
+    ".cm-md-h3": { fontSize: "1.3em", fontWeight: "600" },
+    ".cm-md-h4": { fontSize: "1.1em", fontWeight: "600" },
+    ".cm-md-h5": { fontSize: "0.95em", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em" },
+    ".cm-md-h6": { fontSize: "0.85em", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em", opacity: "0.7" },
+    ".cm-md-bold": { fontWeight: "600" },
+    ".cm-md-italic": { fontStyle: "italic" },
+    ".cm-md-strikethrough": { textDecoration: "line-through", opacity: "0.6" },
+    ".cm-md-inline-code": {
+      fontFamily: '"SF Mono", "JetBrains Mono", "Fira Code", monospace',
+      fontSize: "0.875em", background: "hsl(var(--muted))",
+      padding: "0.15em 0.4em", borderRadius: "4px", border: "1px solid hsl(var(--border))",
+    },
+    ".cm-md-link-text": { color: "hsl(var(--primary))", cursor: "pointer" },
+    ".cm-md-blockquote-line": {
+      borderLeft: "4px solid hsl(var(--primary))", paddingLeft: "1em",
+      background: "hsl(var(--muted) / 0.3)", fontStyle: "italic",
+    },
+    ".cm-md-hr-line": { borderBottom: "2px solid hsl(var(--border))", marginBottom: "0.5em", paddingBottom: "0.5em" },
+    ".cm-md-list-bullet": { color: "hsl(var(--primary))", fontWeight: "700" },
+  },
+  { dark: true }
+);
+
+// ============================================================
 // Component
 // ============================================================
+
+// Font size compartment — allows reconfiguring without recreating editor
+const fontSizeCompartment = new Compartment();
+
+function fontSizeExtension(size: number) {
+  return EditorView.theme({ "&": { fontSize: `${size}px` } });
+}
 
 export function MarkdownEditor({ content, fontSize = 14, onChange, onSave }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const isExternalUpdate = useRef(false);
-  const { theme } = useTheme();
+  const onChangeRef = useRef(onChange);
+  const onSaveRef = useRef(onSave);
 
-  // Get CSS variable values from theme
-  const isDark = theme.name !== "solarized"; // Most themes are dark
+  // Keep refs current without triggering re-render
+  onChangeRef.current = onChange;
+  onSaveRef.current = onSave;
 
+  // Create editor ONCE on mount
   useEffect(() => {
     if (!containerRef.current) return;
-
-    const editorTheme = EditorView.theme(
-      {
-        "&": {
-          height: "100%",
-          fontSize: `${fontSize}px`,
-          fontFamily:
-            '-apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui, sans-serif',
-        },
-        ".cm-content": {
-          padding: "2em 48px",
-          maxWidth: "900px",
-          margin: "0 auto",
-          lineHeight: "1.75",
-          caretColor: "var(--foreground)",
-        },
-        ".cm-scroller": {
-          overflow: "auto",
-          height: "100%",
-          fontFamily: "inherit",
-        },
-        ".cm-focused": { outline: "none" },
-        ".cm-line": { padding: "0" },
-        ".cm-cursor": { borderLeftColor: "var(--foreground)" },
-        ".cm-selectionBackground": {
-          background: "hsl(var(--primary) / 0.3) !important",
-        },
-        "&.cm-focused .cm-selectionBackground": {
-          background: "hsl(var(--primary) / 0.3) !important",
-        },
-        ".cm-gutters": { display: "none" },
-
-        // Rich markdown styles
-        ".cm-md-hidden": {
-          fontSize: "0",
-          width: "0",
-          display: "inline",
-          color: "transparent",
-        },
-        ".cm-md-heading": { fontWeight: "700", lineHeight: "1.3" },
-        ".cm-md-h1": {
-          fontSize: "2em",
-          fontWeight: "800",
-          letterSpacing: "-0.02em",
-          borderBottom: "2px solid hsl(var(--border))",
-          paddingBottom: "0.3em",
-          display: "inline-block",
-          width: "100%",
-        },
-        ".cm-md-h2": {
-          fontSize: "1.6em",
-          fontWeight: "700",
-          borderBottom: "1px solid hsl(var(--border))",
-          paddingBottom: "0.2em",
-          display: "inline-block",
-          width: "100%",
-        },
-        ".cm-md-h3": { fontSize: "1.3em", fontWeight: "600" },
-        ".cm-md-h4": { fontSize: "1.1em", fontWeight: "600" },
-        ".cm-md-h5": {
-          fontSize: "0.95em",
-          fontWeight: "600",
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
-        },
-        ".cm-md-h6": {
-          fontSize: "0.85em",
-          fontWeight: "600",
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
-          opacity: "0.7",
-        },
-        ".cm-md-bold": { fontWeight: "600" },
-        ".cm-md-italic": { fontStyle: "italic" },
-        ".cm-md-strikethrough": {
-          textDecoration: "line-through",
-          opacity: "0.6",
-        },
-        ".cm-md-inline-code": {
-          fontFamily: `${theme.terminal.fontFamily}, monospace`,
-          fontSize: "0.875em",
-          background: "hsl(var(--muted))",
-          padding: "0.15em 0.4em",
-          borderRadius: "4px",
-          border: "1px solid hsl(var(--border))",
-        },
-        ".cm-md-link-text": {
-          color: "hsl(var(--primary))",
-          cursor: "pointer",
-        },
-        ".cm-md-blockquote-line": {
-          borderLeft: "4px solid hsl(var(--primary))",
-          paddingLeft: "1em",
-          background: "hsl(var(--muted) / 0.3)",
-          fontStyle: "italic",
-        },
-        ".cm-md-hr-line": {
-          borderBottom: "2px solid hsl(var(--border))",
-          marginBottom: "0.5em",
-          paddingBottom: "0.5em",
-        },
-        ".cm-md-list-bullet": {
-          color: "hsl(var(--primary))",
-          fontWeight: "700",
-        },
-      },
-      { dark: isDark }
-    );
-
-    const saveKeymap = keymap.of([
-      {
-        key: "Mod-s",
-        run: () => {
-          onSave?.();
-          return true;
-        },
-      },
-    ]);
+    if (viewRef.current) return; // Already created
 
     const state = EditorState.create({
       doc: content,
       extensions: [
         history(),
-        saveKeymap,
-        keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
+        keymap.of([
+          { key: "Mod-s", run: () => { onSaveRef.current?.(); return true; } },
+          ...defaultKeymap,
+          ...historyKeymap,
+          ...searchKeymap,
+          indentWithTab,
+        ]),
         markdown({ base: markdownLanguage }),
         richMarkdownPlugin,
         highlightSelectionMatches(),
-        editorTheme,
+        mdTheme,
+        fontSizeCompartment.of(fontSizeExtension(fontSize)),
         EditorView.lineWrapping,
         EditorView.updateListener.of((update: ViewUpdate) => {
           if (update.docChanged && !isExternalUpdate.current) {
-            onChange(update.state.doc.toString());
+            onChangeRef.current(update.state.doc.toString());
           }
         }),
       ],
@@ -339,11 +327,17 @@ export function MarkdownEditor({ content, fontSize = 14, onChange, onSave }: Pro
       view.destroy();
       viewRef.current = null;
     };
-    // Only recreate on mount — content updates handled below
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fontSize, isDark]);
+  }, []); // EMPTY deps — create once, never recreate
 
-  // Sync external content changes (e.g., file reload)
+  // Update font size without recreating editor
+  useEffect(() => {
+    viewRef.current?.dispatch({
+      effects: fontSizeCompartment.reconfigure(fontSizeExtension(fontSize)),
+    });
+  }, [fontSize]);
+
+  // Sync external content changes (e.g., switching files in tabs)
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;

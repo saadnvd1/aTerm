@@ -53,7 +53,6 @@ interface Props {
   transientTerminals?: TransientTerminal[];
   selectedTerminalId?: string | null;
   onSelectTerminal?: (id: string) => void;
-  onCloseTerminal?: (id: string) => void;
 }
 
 export function ProjectSidebar({
@@ -77,7 +76,6 @@ export function ProjectSidebar({
   transientTerminals = [],
   selectedTerminalId,
   onSelectTerminal,
-  onCloseTerminal,
 }: Props) {
   const [search, setSearch] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
@@ -312,43 +310,25 @@ export function ProjectSidebar({
             })
           )}
 
-          {/* Terminals Section */}
+          {/* Terminals Entry */}
           {transientTerminals.length > 0 && (
-            <>
-              <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-1.5 mt-3 mb-1">
-                Terminals
-              </div>
-              {transientTerminals.map((terminal) => {
-                const isSelected = selectedTerminalId === terminal.id;
-                return (
-                  <div
-                    key={terminal.id}
-                    className={cn(
-                      "flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors group cursor-pointer",
-                      isSelected
-                        ? "bg-accent text-foreground"
-                        : "text-foreground hover:bg-accent/50"
-                    )}
-                    onClick={() => onSelectTerminal?.(terminal.id)}
-                  >
-                    <Terminal className="h-4 w-4 opacity-70" />
-                    <span className="flex-1 truncate">{terminal.name}</span>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      className="h-5 w-5 opacity-0 group-hover:opacity-100"
-                      title="Close terminal"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onCloseTerminal?.(terminal.id);
-                      }}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </div>
-                );
-              })}
-            </>
+            <div className="mt-1">
+              <button
+                onClick={() => onSelectTerminal?.(selectedTerminalId || transientTerminals[0]?.id)}
+                className={cn(
+                  "w-full px-3 py-2.5 flex items-center gap-2.5 bg-transparent border-none rounded-md cursor-pointer text-left transition-colors",
+                  selectedTerminalId
+                    ? "bg-accent text-foreground"
+                    : "text-foreground hover:bg-accent"
+                )}
+              >
+                <Terminal className="h-4 w-4 opacity-70" />
+                <span className="text-[13px] font-medium flex-1">Terminals</span>
+                <span className="text-[10px] text-muted-foreground bg-accent/50 px-1.5 py-0.5 rounded-full">
+                  {transientTerminals.length}
+                </span>
+              </button>
+            </div>
           )}
         </div>
       </div>

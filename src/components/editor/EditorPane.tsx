@@ -252,6 +252,7 @@ export function EditorPane({
             {activeFile ? (
               activeFile.language === "markdown" ? (
                 <MarkdownEditor
+                  key="md-editor"
                   content={activeFile.content}
                   fontSize={fontSize}
                   onChange={(value) => updateContent(activeFile.path, value)}

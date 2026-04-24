@@ -108,6 +108,20 @@ export default function App() {
     setSelectedTask(null);
   }, [selectTerminal, setSelectedProject, setSelectedTask]);
 
+  const handlePrevTab = useCallback(() => {
+    if (!selectedTerminalId || transientTerminals.length < 2) return;
+    const idx = transientTerminals.findIndex((t) => t.id === selectedTerminalId);
+    const prev = idx <= 0 ? transientTerminals.length - 1 : idx - 1;
+    selectTerminal(transientTerminals[prev].id);
+  }, [selectedTerminalId, transientTerminals, selectTerminal]);
+
+  const handleNextTab = useCallback(() => {
+    if (!selectedTerminalId || transientTerminals.length < 2) return;
+    const idx = transientTerminals.findIndex((t) => t.id === selectedTerminalId);
+    const next = idx >= transientTerminals.length - 1 ? 0 : idx + 1;
+    selectTerminal(transientTerminals[next].id);
+  }, [selectedTerminalId, transientTerminals, selectTerminal]);
+
   useKeyboardShortcuts({
     projects: config.projects,
     selectedProject,
@@ -119,6 +133,8 @@ export default function App() {
     onOpenFileSearch: () => setShowFileSearch(true),
     onOpenNewTerminalModal: () => setShowNewTerminalModal(true),
     onToggleZenMode: () => setZenMode((prev) => !prev),
+    onPrevTab: handlePrevTab,
+    onNextTab: handleNextTab,
   });
 
   // Handler for detaching panes to separate windows
@@ -302,23 +318,21 @@ export default function App() {
             transientTerminals={transientTerminals}
             selectedTerminalId={selectedTerminalId}
             onSelectTerminal={handleSelectTerminal}
-            onCloseTerminal={closeTerminal}
           />
         )}
         <div style={styles.main}>
-          {/* Transient terminal view */}
-          {selectedTerminalId && (() => {
-            const terminal = transientTerminals.find((t) => t.id === selectedTerminalId);
-            if (!terminal) return null;
-            return (
-              <TransientTerminalView
-                terminal={terminal}
-                defaultFontSize={config.defaultFontSize ?? 13}
-                defaultScrollback={config.defaultScrollback ?? 10000}
-                onClose={() => closeTerminal(terminal.id)}
-              />
-            );
-          })()}
+          {/* Transient terminal view (tabbed) */}
+          {selectedTerminalId && transientTerminals.length > 0 && (
+            <TransientTerminalView
+              terminals={transientTerminals}
+              selectedTerminalId={selectedTerminalId}
+              defaultFontSize={config.defaultFontSize ?? 13}
+              defaultScrollback={config.defaultScrollback ?? 10000}
+              onSelectTerminal={handleSelectTerminal}
+              onCloseTerminal={closeTerminal}
+              onNewTerminal={() => setShowNewTerminalModal(true)}
+            />
+          )}
 
           {/* Task view */}
           {!selectedTerminalId && selectedTask && selectedProject && (

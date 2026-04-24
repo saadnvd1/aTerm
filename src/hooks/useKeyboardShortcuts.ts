@@ -12,6 +12,8 @@ interface UseKeyboardShortcutsProps {
   onOpenFileSearch?: () => void;
   onOpenNewTerminalModal?: () => void;
   onToggleZenMode?: () => void;
+  onPrevTab?: () => void;
+  onNextTab?: () => void;
 }
 
 export function useKeyboardShortcuts({
@@ -25,6 +27,8 @@ export function useKeyboardShortcuts({
   onOpenFileSearch,
   onOpenNewTerminalModal,
   onToggleZenMode,
+  onPrevTab,
+  onNextTab,
 }: UseKeyboardShortcutsProps) {
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -76,6 +80,15 @@ export function useKeyboardShortcuts({
           onOpenNewTerminalModal();
         }
       }
+      // Cmd+Shift+[ / ]: Previous/Next tab
+      if (e.metaKey && e.shiftKey && (e.key === "[" || e.key === "{") && onPrevTab) {
+        e.preventDefault();
+        onPrevTab();
+      }
+      if (e.metaKey && e.shiftKey && (e.key === "]" || e.key === "}") && onNextTab) {
+        e.preventDefault();
+        onNextTab();
+      }
       // Shift+Cmd+Z: Toggle zen mode
       if (e.metaKey && e.shiftKey && e.key.toLowerCase() === "z") {
         if (onToggleZenMode) {
@@ -87,5 +100,5 @@ export function useKeyboardShortcuts({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [projects, selectedProject, onSelectProject, onToggleSidebar, onOpenScratchNotes, onAddEditorPane, onAddGitPane, onOpenFileSearch, onOpenNewTerminalModal, onToggleZenMode]);
+  }, [projects, selectedProject, onSelectProject, onToggleSidebar, onOpenScratchNotes, onAddEditorPane, onAddGitPane, onOpenFileSearch, onOpenNewTerminalModal, onToggleZenMode, onPrevTab, onNextTab]);
 }
