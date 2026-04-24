@@ -1,6 +1,6 @@
 // Terminal profiles - reusable terminal configurations (like iTerm2 profiles)
 
-export type ProfileType = "terminal" | "git" | "editor";
+export type ProfileType = "terminal" | "git" | "editor" | "agent-config";
 
 export interface TerminalProfile {
   id: string;
@@ -62,6 +62,12 @@ export const DEFAULT_PROFILES: TerminalProfile[] = [
     name: "Editor",
     color: "#0ea5e9",
     type: "editor",
+  },
+  {
+    id: "agent-config",
+    name: "Agent Config",
+    color: "#a78bfa",
+    type: "agent-config",
   },
 ];
 

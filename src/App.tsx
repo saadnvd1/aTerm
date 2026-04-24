@@ -63,6 +63,7 @@ export default function App() {
     handleRestoreWindowArrangement,
     handleAddGitPane,
     handleAddEditorPane,
+    handleAddAgentConfigPane,
     ensureEditorPane,
     deactivateProject,
     reactivateProject,
@@ -130,6 +131,7 @@ export default function App() {
     onOpenScratchNotes: () => setShowNotesModal(true),
     onAddEditorPane: handleAddEditorPane,
     onAddGitPane: handleAddGitPane,
+    onAddAgentConfigPane: handleAddAgentConfigPane,
     onOpenFileSearch: () => setShowFileSearch(true),
     onOpenNewTerminalModal: () => setShowNewTerminalModal(true),
     onToggleZenMode: () => setZenMode((prev) => !prev),
@@ -308,6 +310,7 @@ export default function App() {
             onRestoreWindowArrangement={handleRestoreWindowArrangement}
             onAddGitPane={handleAddGitPane}
             onAddEditorPane={handleAddEditorPane}
+            onAddAgentConfigPane={handleAddAgentConfigPane}
             onCreateTask={(project) => setCreateTaskProject(project)}
             onDeleteTask={handleDeleteTask}
             onDetachProject={handleDetachProject}

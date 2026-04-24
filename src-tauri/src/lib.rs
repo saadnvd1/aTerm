@@ -15,7 +15,7 @@ mod worktree;
 
 use config::{load_config, save_config};
 use directory::{get_home_dir, list_all_project_files, list_directory, list_project_directory};
-use file_ops::{open_in_editor, read_file_content, write_file_content};
+use file_ops::{check_files_exist, create_parent_dirs, open_in_editor, read_file_content, write_file_content};
 use git::{
     clone_repo, discard_changes, get_commit_diff, get_commit_files, get_commit_history,
     get_file_diff, get_git_remote, get_git_status, git_commit, git_push, stage_all, stage_files,
@@ -68,6 +68,8 @@ pub fn run() {
             open_in_editor,
             read_file_content,
             write_file_content,
+            check_files_exist,
+            create_parent_dirs,
             get_iterm_profiles,
             create_worktree,
             remove_worktree,

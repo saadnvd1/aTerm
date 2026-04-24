@@ -214,6 +214,58 @@ export function useLayouts({ config, updateConfig, selectedProject }: UseLayouts
     }
   }
 
+  function handleAddAgentConfigPane() {
+    if (!selectedProject) return;
+
+    const layout = runtimeLayouts[selectedProject.id];
+    if (!layout || layout.rows.length === 0) return;
+
+    // Check if an agent-config pane already exists
+    let paneLocation: { rowIndex: number; paneIndex: number } | null = null;
+    for (let rowIndex = 0; rowIndex < layout.rows.length; rowIndex++) {
+      const row = layout.rows[rowIndex];
+      for (let paneIndex = 0; paneIndex < row.panes.length; paneIndex++) {
+        const pane = row.panes[paneIndex];
+        const profile = config.profiles.find((p) => p.id === pane.profileId);
+        if (profile?.type === "agent-config") {
+          paneLocation = { rowIndex, paneIndex };
+          break;
+        }
+      }
+      if (paneLocation) break;
+    }
+
+    if (paneLocation) {
+      // Remove (toggle off)
+      const totalPanes = layout.rows.reduce((acc, r) => acc + r.panes.length, 0);
+      if (totalPanes <= 1) return;
+
+      const newRows = layout.rows
+        .map((row, rowIndex) => {
+          if (rowIndex !== paneLocation!.rowIndex) return row;
+          return {
+            ...row,
+            panes: row.panes.filter((_, i) => i !== paneLocation!.paneIndex),
+          };
+        })
+        .filter((row) => row.panes.length > 0);
+
+      handleRuntimeLayoutChange(selectedProject.id, { ...layout, rows: newRows });
+    } else {
+      // Add (toggle on)
+      const newPane = { id: crypto.randomUUID(), profileId: "agent-config", flex: 1 };
+      const newRows = layout.rows.map((row, index) => {
+        if (index === 0) {
+          return { ...row, panes: [...row.panes, newPane] };
+        }
+        return row;
+      });
+
+      handleRuntimeLayoutChange(selectedProject.id, { ...layout, rows: newRows });
+      setPendingFocusPaneId(newPane.id);
+    }
+  }
+
   // Ensure an editor pane exists (doesn't toggle off if already exists)
   function ensureEditorPane(): boolean {
     if (!selectedProject) return false;
@@ -313,6 +365,7 @@ export function useLayouts({ config, updateConfig, selectedProject }: UseLayouts
     handleRestoreWindowArrangement,
     handleAddGitPane,
     handleAddEditorPane,
+    handleAddAgentConfigPane,
     ensureEditorPane,
     deactivateProject,
     reactivateProject,

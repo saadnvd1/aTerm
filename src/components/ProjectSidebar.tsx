@@ -3,7 +3,7 @@ import Fuse from "fuse.js";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Settings, Plus, GitBranch, X, Zap, StickyNote, FileCode, Terminal } from "lucide-react";
+import { Settings, Plus, GitBranch, X, Zap, StickyNote, FileCode, Terminal, Bot } from "lucide-react";
 import { SimpleTooltip } from "@/components/ui/simple-tooltip";
 import type { ProjectConfig, AppConfig } from "../lib/config";
 import type { TransientTerminal } from "../lib/transient";
@@ -43,6 +43,7 @@ interface Props {
   onRestoreWindowArrangement: (projectId: string) => void;
   onAddGitPane: () => void;
   onAddEditorPane: () => void;
+  onAddAgentConfigPane: () => void;
   onCreateTask: (project: ProjectConfig) => void;
   onDeleteTask: (project: ProjectConfig, task: Task) => void;
   onDetachProject?: (project: ProjectConfig) => void;
@@ -66,6 +67,7 @@ export function ProjectSidebar({
   onRestoreWindowArrangement,
   onAddGitPane,
   onAddEditorPane,
+  onAddAgentConfigPane,
   onCreateTask,
   onDeleteTask,
   onDetachProject,
@@ -166,6 +168,16 @@ export function ProjectSidebar({
                 disabled={!selectedProject}
               >
                 <FileCode className="h-4 w-4" />
+              </Button>
+            </SimpleTooltip>
+            <SimpleTooltip content="Agent Config" shortcut="⇧⌘A" disabled={!selectedProject}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={onAddAgentConfigPane}
+                disabled={!selectedProject}
+              >
+                <Bot className="h-4 w-4" />
               </Button>
             </SimpleTooltip>
             <SimpleTooltip content="Scratch Notes" shortcut="⇧⌘N" disabled={!selectedProject}>

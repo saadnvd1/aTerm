@@ -14,6 +14,20 @@
 - [ ] Inline file editing in diff viewer
 - [ ] Right-click file to open in default editor or VSCode
 
+## Terminals
+
+- [ ] Rename anonymous terminal tabs (double-click tab to edit name)
+
+## Agent Integration
+
+- [ ] First-class skills support — dedicated panes for viewing/editing skills (SKILL.md files)
+- [x] Dedicated panes for CLAUDE.md, AGENTS.md, and other agent config files — surface them in the UI instead of requiring terminal navigation
+
+## Code Editor
+
+- [ ] Create new files directly from the editor file tree
+- [ ] Watch filesystem for changes — when files are created/deleted outside aTerm, update the file tree in real-time
+
 ## Window Management
 
 - [ ] Detachable windows (see docs/plans/detachable-panes.md)

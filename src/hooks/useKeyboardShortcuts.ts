@@ -9,6 +9,7 @@ interface UseKeyboardShortcutsProps {
   onOpenScratchNotes: () => void;
   onAddEditorPane?: () => void;
   onAddGitPane?: () => void;
+  onAddAgentConfigPane?: () => void;
   onOpenFileSearch?: () => void;
   onOpenNewTerminalModal?: () => void;
   onToggleZenMode?: () => void;
@@ -24,6 +25,7 @@ export function useKeyboardShortcuts({
   onOpenScratchNotes,
   onAddEditorPane,
   onAddGitPane,
+  onAddAgentConfigPane,
   onOpenFileSearch,
   onOpenNewTerminalModal,
   onToggleZenMode,
@@ -66,6 +68,13 @@ export function useKeyboardShortcuts({
           onAddGitPane();
         }
       }
+      // Cmd+Shift+A: Toggle agent config pane
+      if (e.metaKey && e.shiftKey && e.key.toLowerCase() === "a") {
+        if (selectedProject && onAddAgentConfigPane) {
+          e.preventDefault();
+          onAddAgentConfigPane();
+        }
+      }
       // Cmd+P: Open file search
       if (e.metaKey && !e.shiftKey && e.key.toLowerCase() === "p") {
         if (selectedProject && onOpenFileSearch) {
@@ -100,5 +109,5 @@ export function useKeyboardShortcuts({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [projects, selectedProject, onSelectProject, onToggleSidebar, onOpenScratchNotes, onAddEditorPane, onAddGitPane, onOpenFileSearch, onOpenNewTerminalModal, onToggleZenMode, onPrevTab, onNextTab]);
+  }, [projects, selectedProject, onSelectProject, onToggleSidebar, onOpenScratchNotes, onAddEditorPane, onAddGitPane, onAddAgentConfigPane, onOpenFileSearch, onOpenNewTerminalModal, onToggleZenMode, onPrevTab, onNextTab]);
 }

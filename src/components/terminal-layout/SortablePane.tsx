@@ -18,6 +18,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { TerminalPane, serializeRefs } from "../TerminalPane";
 import { GitPane } from "../git/GitPane";
 import { EditorPane } from "../editor/EditorPane";
+import { AgentConfigPane } from "../agent-config/AgentConfigPane";
 import { updatePaneName } from "../../lib/layouts";
 import { PROVIDERS } from "../../lib/providers";
 import { PaneEdgeDropZone } from "./DropZones";
@@ -209,6 +210,24 @@ export function SortablePane({
           pendingFileToOpen={pendingFileToOpen}
           onPendingFileOpened={onPendingFileOpened}
         />
+      ) : profile.type === "agent-config" ? (
+        <AgentConfigPane
+          id={`${project.id}-${paneId}`}
+          title={paneName || profile.name}
+          cwd={project.path}
+          accentColor={profile.color}
+          projectColor={project.color}
+          fontSize={fontSize}
+          onFontSizeChange={onFontSizeChange}
+          onFocus={onFocus}
+          isFocused={isFocused}
+          onClose={onClosePane}
+          onRename={handleRename}
+          triggerRename={triggerRename}
+          onTriggerRenameComplete={onTriggerRenameComplete}
+          canClose={canClose}
+          dragHandleProps={{ ...attributes, ...listeners }}
+        />
       ) : (
         <TerminalPane
           id={`${project.id}-${paneId}`}
@@ -320,7 +339,7 @@ export function SortablePane({
           </ContextMenuSub>
           <ContextMenuSeparator />
           <ContextMenuItem onClick={onStartRename}>Rename</ContextMenuItem>
-          {profile?.type !== "git" && profile?.type !== "editor" && (
+          {profile?.type !== "git" && profile?.type !== "editor" && profile?.type !== "agent-config" && (
             <ContextMenuItem onClick={async () => {
               const serializeFn = serializeRefs.get(`${project.id}-${paneId}`);
               if (!serializeFn) return;
