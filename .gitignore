@@ -29,8 +29,10 @@ coverage/
 .cache/
 
 # Claude
-CLAUDE.md
 .claude/
+
+# Session notes (ephemeral)
+master.md
 
 # Tauri
 src-tauri/target/
