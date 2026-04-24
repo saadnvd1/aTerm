@@ -3,6 +3,7 @@ import { PaneHeader } from "../PaneHeader";
 import { FileExplorer } from "./FileExplorer";
 import { EditorTabs } from "./EditorTabs";
 import { CodeEditor } from "./CodeEditor";
+import { MarkdownEditor } from "./MarkdownEditor";
 import { useFileManager } from "../../hooks/useFileManager";
 
 const DEFAULT_FONT_SIZE = 13;
@@ -249,15 +250,24 @@ export function EditorPane({
 
           <div className="flex-1 overflow-hidden">
             {activeFile ? (
-              <CodeEditor
-                content={activeFile.content}
-                language={activeFile.language}
-                filePath={activeFile.path}
-                projectRoot={cwd}
-                fontSize={fontSize}
-                onChange={(value) => updateContent(activeFile.path, value)}
-                onSave={handleSave}
-              />
+              activeFile.language === "markdown" ? (
+                <MarkdownEditor
+                  content={activeFile.content}
+                  fontSize={fontSize}
+                  onChange={(value) => updateContent(activeFile.path, value)}
+                  onSave={handleSave}
+                />
+              ) : (
+                <CodeEditor
+                  content={activeFile.content}
+                  language={activeFile.language}
+                  filePath={activeFile.path}
+                  projectRoot={cwd}
+                  fontSize={fontSize}
+                  onChange={(value) => updateContent(activeFile.path, value)}
+                  onSave={handleSave}
+                />
+              )
             ) : (
               <div className="flex-1 flex items-center justify-center text-muted-foreground text-xs h-full">
                 <div className="text-center">
