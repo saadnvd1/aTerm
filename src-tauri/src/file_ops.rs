@@ -59,8 +59,9 @@ pub struct DirFileEntry {
     pub is_dir: bool,
 }
 
-/// List files in a directory, returning entries relative to project root.
+/// List files in a directory recursively, returning entries relative to project root.
 /// Unlike list_project_directory, does not filter hidden files.
+/// Recurses into subdirectories so skills/commands in nested folders are discovered.
 #[tauri::command]
 pub fn list_dir_files(root: String, relative_path: String) -> Result<Vec<DirFileEntry>, String> {
     let full_path = PathBuf::from(&root).join(&relative_path);
@@ -69,15 +70,25 @@ pub fn list_dir_files(root: String, relative_path: String) -> Result<Vec<DirFile
     }
 
     let mut entries = Vec::new();
-    let read_dir = fs::read_dir(&full_path).map_err(|e| e.to_string())?;
+    collect_dir_files(&full_path, &relative_path, &mut entries)?;
+    entries.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    Ok(entries)
+}
+
+fn collect_dir_files(dir: &Path, rel_prefix: &str, entries: &mut Vec<DirFileEntry>) -> Result<(), String> {
+    let read_dir = fs::read_dir(dir).map_err(|e| e.to_string())?;
 
     for entry in read_dir.filter_map(|e| e.ok()) {
         let name = entry.file_name().to_string_lossy().to_string();
-        let is_dir = entry.path().is_dir();
-        let rel_path = format!("{}/{}", relative_path, name);
-        entries.push(DirFileEntry { name, path: rel_path, is_dir });
+        let rel_path = format!("{}/{}", rel_prefix, name);
+
+        if entry.path().is_dir() {
+            // Recurse into subdirectories
+            collect_dir_files(&entry.path(), &rel_path, entries)?;
+        } else {
+            entries.push(DirFileEntry { name, path: rel_path, is_dir: false });
+        }
     }
 
-    entries.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
-    Ok(entries)
+    Ok(())
 }

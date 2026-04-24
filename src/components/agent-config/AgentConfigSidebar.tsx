@@ -67,13 +67,18 @@ export function AgentConfigSidebar({
             }
             return true;
           })
-          .map((e) => ({
-            id: `${configFile.id}:${e.name}`,
-            label: e.name,
-            relativePath: e.path,
-            language: configFile.language,
-            parentConfigId: configFile.id,
-          }));
+          .map((e) => {
+            // Show path relative to the config directory (e.g. "subdir/file.md" not just "file.md")
+            const prefix = configFile.relativePath + "/";
+            const displayPath = e.path.startsWith(prefix) ? e.path.slice(prefix.length) : e.name;
+            return {
+              id: `${configFile.id}:${e.path}`,
+              label: displayPath,
+              relativePath: e.path,
+              language: configFile.language,
+              parentConfigId: configFile.id,
+            };
+          });
 
         setDirChildren((prev) => ({ ...prev, [configFile.id]: files }));
       } catch {
