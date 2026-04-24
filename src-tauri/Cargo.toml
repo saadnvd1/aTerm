@@ -1,6 +1,6 @@
 [package]
 name = "aterm"
-version = "0.1.36"
+version = "0.1.37"
 description = "Agent-focused terminal workspace"
 authors = ["Saad Naveed"]
 license = "MIT"
