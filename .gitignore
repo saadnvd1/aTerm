@@ -28,5 +28,9 @@ npm-debug.log*
 coverage/
 .cache/
 
+# Claude
+CLAUDE.md
+.claude/
+
 # Tauri
 src-tauri/target/

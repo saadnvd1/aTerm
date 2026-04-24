@@ -23,8 +23,8 @@ use git::{
 };
 use iterm::get_iterm_profiles;
 use pty::{
-    force_exit, get_active_pty_count, kill_all_ptys, kill_pty, resize_pty, spawn_pty, write_pty,
-    PtyMap,
+    ack_pty_data, force_exit, get_active_pty_count, kill_all_ptys, kill_pty, resize_pty, spawn_pty,
+    write_pty, FlowMap, PtyMap,
 };
 use notify::send_bell_notification;
 use window::{close_detached_window, create_detached_window, list_detached_windows};
@@ -37,11 +37,13 @@ use worktree::{create_worktree, list_git_branches, list_worktrees, remove_worktr
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let pty_map: PtyMap = Arc::new(Mutex::new(HashMap::new()));
+    let flow_map: FlowMap = Arc::new(Mutex::new(HashMap::new()));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(pty_map)
+        .manage(flow_map)
         .invoke_handler(tauri::generate_handler![
             load_config,
             save_config,
@@ -77,6 +79,7 @@ pub fn run() {
             kill_pty,
             get_active_pty_count,
             kill_all_ptys,
+            ack_pty_data,
             force_exit,
             create_detached_window,
             close_detached_window,

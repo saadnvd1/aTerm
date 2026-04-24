@@ -1,46 +1,47 @@
 import type { Terminal } from "@xterm/xterm";
+import { invoke } from "@tauri-apps/api/core";
+
+const ACK_BATCH_SIZE = 4096;
 
 /**
- * Batches PTY output writes to xterm.js using requestAnimationFrame.
+ * Handles PTY output writes to xterm.js with flow control.
  *
- * When rapid escape sequences arrive (e.g., Claude Code screen redraws),
- * intermediate states are coalesced into a single terminal.write() per frame,
- * preventing visible flicker.
+ * Writes data directly to xterm (no batching) and acks the Rust backend
+ * after xterm.js finishes parsing, enabling backpressure on fast output.
  *
- * Latency impact: 0-16ms (one frame), imperceptible for interactive use.
+ * Direct writes with flow control — no batching, backpressure handles the rest.
  */
 export class PtyWriteBatcher {
-  private buffer = "";
-  private rafId: number | null = null;
+  private unsentAck = 0;
 
-  constructor(private terminal: Terminal) {}
+  constructor(
+    private terminal: Terminal,
+    private ptyId: string,
+  ) {}
 
   write(decoded: string): void {
-    this.buffer += decoded;
-
-    if (this.rafId === null) {
-      this.rafId = requestAnimationFrame(() => this.flush());
-    }
+    const len = decoded.length;
+    this.terminal.write(decoded, () => {
+      this.ack(len);
+    });
   }
 
-  private flush(): void {
-    this.rafId = null;
-    if (!this.buffer) return;
-
-    const data = this.buffer;
-    this.buffer = "";
-    this.terminal.write(data);
+  private ack(count: number): void {
+    this.unsentAck += count;
+    while (this.unsentAck >= ACK_BATCH_SIZE) {
+      this.unsentAck -= ACK_BATCH_SIZE;
+      invoke("ack_pty_data", { id: this.ptyId, count: ACK_BATCH_SIZE }).catch(
+        () => {},
+      );
+    }
   }
 
   dispose(): void {
-    if (this.rafId !== null) {
-      cancelAnimationFrame(this.rafId);
-      this.rafId = null;
-    }
-    // Flush remaining data synchronously on dispose
-    if (this.buffer) {
-      this.terminal.write(this.buffer);
-      this.buffer = "";
+    if (this.unsentAck > 0) {
+      invoke("ack_pty_data", { id: this.ptyId, count: this.unsentAck }).catch(
+        () => {},
+      );
+      this.unsentAck = 0;
     }
   }
 }

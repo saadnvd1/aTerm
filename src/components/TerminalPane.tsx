@@ -20,13 +20,15 @@ import {
   serializeRefs,
   base64ToUint8Array,
   PtyWriteBatcher,
-  smoothOutputEnabled,
   MIN_FONT_SIZE,
   MAX_FONT_SIZE,
   DEFAULT_SCROLLBACK,
 } from "./terminal-pane";
 import "@xterm/xterm/css/xterm.css";
 
+
+// Cache WebGL fallback decision globally — once it fails, don't retry for any terminal
+let webglFailed = false;
 
 /**
  * Strip ANSI escape codes from terminal output for pattern matching.
@@ -183,6 +185,14 @@ export function TerminalPane({
         allowProposedApi: true,
         theme: theme.terminal.theme,
         scrollback,
+        // Optimized options for smoother rendering
+        smoothScrollDuration: 125,
+        scrollOnUserInput: true,
+        fastScrollSensitivity: 5,
+        scrollSensitivity: 1,
+        rescaleOverlappingGlyphs: true,
+        macOptionIsMeta: false,
+        macOptionClickForcesSelection: true,
       });
 
       fitAddon = new FitAddon();
@@ -190,16 +200,24 @@ export function TerminalPane({
       terminal.open(containerRef.current);
 
       // Try to load WebGL addon for GPU-accelerated rendering
-      try {
-        const webglAddon = new WebglAddon();
-        webglAddon.onContextLoss(() => {
-          console.warn("WebGL context lost, falling back to canvas renderer");
-          webglAddon.dispose();
-        });
-        terminal.loadAddon(webglAddon);
-        console.log("WebGL renderer active for terminal:", id);
-      } catch (e) {
-        console.warn("WebGL addon failed to load, using canvas renderer:", e);
+      // Uses cached fallback decision — once WebGL fails globally, skip for all terminals
+      if (!webglFailed) {
+        try {
+          const webglAddon = new WebglAddon();
+          webglAddon.onContextLoss(() => {
+            console.warn("WebGL context lost, falling back to DOM renderer");
+            webglAddon.dispose();
+            webglFailed = true;
+          });
+          terminal.loadAddon(webglAddon);
+          // WebGL has different cell dimensions — trigger refit
+          requestAnimationFrame(() => {
+            fitAddon.fit();
+          });
+        } catch (e) {
+          console.warn("WebGL failed, using DOM renderer for all terminals:", e);
+          webglFailed = true;
+        }
       }
 
       // Cmd+click to open URLs
@@ -349,7 +367,7 @@ export function TerminalPane({
     // Write batcher - coalesces rapid PTY output into one xterm.js write per frame
     // This mitigates Claude Code's screen redraw flicker (anthropics/claude-code#367)
     // Gated behind Settings > Appearance > Smooth Output
-    const batcher = new PtyWriteBatcher(terminal);
+    const batcher = new PtyWriteBatcher(terminal, id);
 
     if (isNewInstance || !instance?.unlisten) {
       const decoder = new TextDecoder("utf-8", { fatal: false });
@@ -357,11 +375,7 @@ export function TerminalPane({
       listen<string>(`pty-output-${id}`, (event) => {
         const rawData = base64ToUint8Array(event.payload);
         const decoded = decoder.decode(rawData, { stream: true });
-        if (smoothOutputEnabled) {
-          batcher.write(decoded);
-        } else {
-          terminal.write(decoded);
-        }
+        batcher.write(decoded);
 
         // Debounce + idle detection for initial prompt injection
         if (initialInput && !initialPromptSent) {
@@ -395,14 +409,15 @@ export function TerminalPane({
     const handleTerminalClick = () => onFocusRef.current?.();
     terminal.element?.addEventListener("click", handleTerminalClick);
 
-    // Resize observer
-    let resizeTimeout: number;
+    // Resize observer — use RAF for responsive resize without jank
+    let resizeRafId: number | null = null;
     const resizeObserver = new ResizeObserver(() => {
-      clearTimeout(resizeTimeout);
-      resizeTimeout = window.setTimeout(() => {
+      if (resizeRafId !== null) cancelAnimationFrame(resizeRafId);
+      resizeRafId = requestAnimationFrame(() => {
+        resizeRafId = null;
         fitPreservingScroll(terminal, fitAddon);
         invoke("resize_pty", { id, cols: terminal.cols, rows: terminal.rows }).catch(console.error);
-      }, 100);
+      });
     });
     resizeObserver.observe(containerRef.current);
 
@@ -423,7 +438,7 @@ export function TerminalPane({
       if (fallbackTimer) {
         clearTimeout(fallbackTimer);
       }
-      clearTimeout(resizeTimeout);
+      if (resizeRafId !== null) cancelAnimationFrame(resizeRafId);
       batcher.dispose();
       terminal.element?.removeEventListener("click", handleTerminalClick);
       resizeObserver.disconnect();
